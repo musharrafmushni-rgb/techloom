@@ -26,7 +26,16 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Health check endpoint
+// Root & Health check endpoints
+app.get('/', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'E-Commerce Checkout & Payment Backend is running',
+    health: '/api/health',
+    products: '/api/products'
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -69,11 +78,11 @@ async function startServer() {
       inventoryService.cleanupExpiredReservations();
     }, 60 * 1000);
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`=======================================================`);
       console.log(`🚀 E-Commerce Payment Backend running on port ${PORT}`);
-      console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
-      console.log(`🛍️ Products API: http://localhost:${PORT}/api/products`);
+      console.log(`📡 Health check: http://0.0.0.0:${PORT}/api/health`);
+      console.log(`🛍️ Products API: http://0.0.0.0:${PORT}/api/products`);
       console.log(`=======================================================`);
     });
   } catch (err) {
