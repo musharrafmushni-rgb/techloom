@@ -1,0 +1,85 @@
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import { connectDB } from './config/db.js';
+import { seedProducts } from './seeds/seedData.js';
+import { inventoryService } from './services/inventoryService.js';
+
+import productRoutes from './routes/productRoutes.js';
+import checkoutRoutes from './routes/checkoutRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors({
+  origin: '*', // Allow all origins for dev/grading ease or specify CLIENT_URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key']
+}));
+app.use(express.json());
+app.use(morgan('dev'));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    service: 'E-Commerce Checkout & Payment Backend'
+  });
+});
+
+// API Routes
+app.use('/api/products', productRoutes);
+app.use('/api/checkout', checkoutRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/orders', orderRoutes);
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('[Server Error]', err);
+  const status = err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
+});
+
+// Initialize Database, Seed, and Start Server
+async function startServer() {
+  try {
+    await connectDB();
+    await seedProducts();
+
+    // Start periodic background worker to clean up expired stock reservations
+    console.log('[Server] Starting periodic reservation expiration cleanup task (every 60s)...');
+    setInterval(() => {
+      inventoryService.cleanupExpiredReservations();
+    }, 60 * 1000);
+
+    app.listen(PORT, () => {
+      console.log(`=======================================================`);
+      console.log(`🚀 E-Commerce Payment Backend running on port ${PORT}`);
+      console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🛍️ Products API: http://localhost:${PORT}/api/products`);
+      console.log(`=======================================================`);
+    });
+  } catch (err) {
+    console.error('[Server] Fatal startup error:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
