@@ -13,22 +13,25 @@ export const connectDB = async () => {
   try {
     console.log(`[DB] Connecting to MongoDB at: ${uri.replace(/\/\/.*@/, '//***:***@')}...`);
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 4000
+      serverSelectionTimeoutMS: 5000
     });
     console.log(`[DB] MongoDB Connected successfully: ${conn.connection.host}/${conn.connection.name}`);
     return conn;
   } catch (err) {
-    console.warn(`[DB] Could not connect to primary MongoDB (${err.message}). Attempting MongoMemoryServer fallback...`);
+    console.warn(`[DB] Primary MongoDB connection failed: ${err.message}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`[DB] Running in production. Check MONGODB_URI & Atlas Network Access (allow 0.0.0.0/0).`);
+    }
     try {
       const { MongoMemoryServer } = await import('mongodb-memory-server');
       memoryServer = await MongoMemoryServer.create();
       const memUri = memoryServer.getUri();
       const conn = await mongoose.connect(memUri);
-      console.log(`[DB] In-Memory MongoDB running at: ${memUri}`);
+      console.log(`[DB] In-Memory MongoDB fallback running at: ${memUri}`);
       return conn;
     } catch (fallbackErr) {
-      console.error(`[DB] Fatal: Could not establish MongoDB connection:`, fallbackErr);
-      throw fallbackErr;
+      console.warn(`[DB] MongoMemoryServer fallback not available: ${fallbackErr.message}`);
+      return null;
     }
   }
 };

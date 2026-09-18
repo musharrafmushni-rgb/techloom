@@ -36,9 +36,13 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check endpoint with DB status
 app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
   res.json({
-    status: 'OK',
+    status: dbState === 1 ? 'OK' : 'DEGRADED',
+    database: states[dbState] || 'unknown',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     service: 'E-Commerce Checkout & Payment Backend'
@@ -66,8 +70,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize Database, Seed, and Start Server
+// Start Server and then connect to DB
 async function startServer() {
+  // 1. Listen immediately so cloud host (Railway/Render) detects the port right away
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`=======================================================`);
+    console.log(`🚀 E-Commerce Payment Backend listening on 0.0.0.0:${PORT}`);
+    console.log(`📡 Health check: http://0.0.0.0:${PORT}/api/health`);
+    console.log(`🛍️ Products API: http://0.0.0.0:${PORT}/api/products`);
+    console.log(`=======================================================`);
+  });
+
+  // 2. Connect Database & Seed asynchronously
   try {
     await connectDB();
     await seedProducts();
@@ -77,17 +91,8 @@ async function startServer() {
     setInterval(() => {
       inventoryService.cleanupExpiredReservations();
     }, 60 * 1000);
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`=======================================================`);
-      console.log(`🚀 E-Commerce Payment Backend running on port ${PORT}`);
-      console.log(`📡 Health check: http://0.0.0.0:${PORT}/api/health`);
-      console.log(`🛍️ Products API: http://0.0.0.0:${PORT}/api/products`);
-      console.log(`=======================================================`);
-    });
   } catch (err) {
-    console.error('[Server] Fatal startup error:', err);
-    process.exit(1);
+    console.error('[Server] Database initialization error (server is still running):', err.message);
   }
 }
 
